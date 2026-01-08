@@ -567,7 +567,7 @@ export default function Home() {
                 </h3>
                 <p className="text-black/90 leading-relaxed font-bold">
                   Collaborate with anyone, anywhere. Share session links and see
-                  everyone's edits in real-time no accounts, just wallets.
+                  everyone&apos;s edits in real-time no accounts, just wallets.
                 </p>
               </div>
             </div>

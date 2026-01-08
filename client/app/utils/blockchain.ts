@@ -3,7 +3,17 @@ import { ethers } from "ethers";
 
 declare global {
   interface Window {
-    ethereum?: any;
+    ethereum?: {
+      request: (args: {
+        method: string;
+        params?: unknown[];
+      }) => Promise<string[] | string>;
+      on?: (event: string, callback: (...args: unknown[]) => void) => void;
+      removeListener?: (
+        event: string,
+        callback: (...args: unknown[]) => void
+      ) => void;
+    };
   }
 }
 
@@ -292,17 +302,17 @@ function getContract(signer?: ethers.Signer): ethers.Contract {
  * Connect to wallet and add/switch to Hedera Testnet
  */
 export async function connectWallet(): Promise<WalletConnection> {
-  if (!isWalletAvailable()) {
+  if (!isWalletAvailable() || !window.ethereum) {
     throw new Error("MetaMask or compatible wallet is required");
   }
 
   try {
-    let provider = new ethers.BrowserProvider(window.ethereum!);
+    let provider = new ethers.BrowserProvider(window.ethereum);
 
     // Request account access
-    const accounts = await window.ethereum.request({
+    const accounts = (await window.ethereum.request({
       method: "eth_requestAccounts",
-    });
+    })) as string[];
 
     if (!accounts || accounts.length === 0) {
       throw new Error("No accounts found. Please connect your wallet.");
@@ -319,9 +329,10 @@ export async function connectWallet(): Promise<WalletConnection> {
           method: "wallet_switchEthereumChain",
           params: [{ chainId: BASE_SEPOLIA_CONFIG.chainId }],
         });
-      } catch (switchError: any) {
+      } catch (switchError: unknown) {
         // If the chain hasn't been added yet, add it
-        if (switchError.code === 4902) {
+        const err = switchError as { code?: number };
+        if (err.code === 4902) {
           await window.ethereum.request({
             method: "wallet_addEthereumChain",
             params: [BASE_SEPOLIA_CONFIG],
@@ -332,7 +343,10 @@ export async function connectWallet(): Promise<WalletConnection> {
       }
 
       // After network switch, recreate provider so ethers sees the new network
-      provider = new ethers.BrowserProvider(window.ethereum!);
+      if (!window.ethereum) {
+        throw new Error("Ethereum provider not available");
+      }
+      provider = new ethers.BrowserProvider(window.ethereum);
     }
 
     // Get signer and balance
@@ -359,15 +373,15 @@ export async function connectWallet(): Promise<WalletConnection> {
  * Get connected wallet address
  */
 export async function getConnectedAddress(): Promise<string | null> {
-  if (!isWalletAvailable()) {
+  if (!isWalletAvailable() || !window.ethereum) {
     return null;
   }
 
   try {
-    const provider = new ethers.BrowserProvider(window.ethereum!);
-    const accounts = await window.ethereum.request({
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const accounts = (await window.ethereum.request({
       method: "eth_accounts",
-    });
+    })) as string[];
     return accounts && accounts.length > 0 ? accounts[0] : null;
   } catch (error) {
     console.error("Failed to get connected address:", error);
@@ -393,7 +407,10 @@ export async function createDocumentOnChain(
     console.log("Connected wallet:", walletConnection.address);
 
     // Get provider and signer
-    const provider = new ethers.BrowserProvider(window.ethereum!);
+    if (!window.ethereum) {
+      throw new Error("Ethereum provider not available");
+    }
+    const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
     const contract = getContract(signer);
 
@@ -425,21 +442,22 @@ export async function createDocumentOnChain(
       transactionHash: receipt.hash,
       blockNumber: Number(receipt.blockNumber),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Blockchain document creation failed:", error);
 
     // Handle specific error cases
     let errorMessage = "Unknown blockchain error";
-    if (error.code === 4001 || error.code === "ACTION_REJECTED") {
+    const err = error as { code?: number | string; message?: string };
+    if (err.code === 4001 || err.code === "ACTION_REJECTED") {
       errorMessage = "Transaction was rejected by user";
     } else if (
-      error.message &&
-      (error.message.includes("insufficient funds") ||
-        error.message.includes("insufficient balance"))
+      err.message &&
+      (err.message.includes("insufficient funds") ||
+        err.message.includes("insufficient balance"))
     ) {
       errorMessage = "Insufficient HBAR balance for transaction";
-    } else if (error.message) {
-      errorMessage = error.message;
+    } else if (err.message) {
+      errorMessage = err.message;
     }
 
     return {
@@ -467,7 +485,10 @@ export async function updateDocumentOnChain(
     console.log("Connected wallet:", walletConnection.address);
 
     // Get provider and signer
-    const provider = new ethers.BrowserProvider(window.ethereum!);
+    if (!window.ethereum) {
+      throw new Error("Ethereum provider not available");
+    }
+    const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
     const contract = getContract(signer);
 
@@ -509,20 +530,21 @@ export async function updateDocumentOnChain(
       transactionHash: receipt.hash,
       blockNumber: Number(receipt.blockNumber),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Blockchain document update failed:", error);
 
     let errorMessage = "Unknown blockchain error";
-    if (error.code === 4001 || error.code === "ACTION_REJECTED") {
+    const err = error as { code?: number | string; message?: string };
+    if (err.code === 4001 || err.code === "ACTION_REJECTED") {
       errorMessage = "Transaction was rejected by user";
     } else if (
-      error.message &&
-      (error.message.includes("insufficient funds") ||
-        error.message.includes("insufficient balance"))
+      err.message &&
+      (err.message.includes("insufficient funds") ||
+        err.message.includes("insufficient balance"))
     ) {
       errorMessage = "Insufficient HBAR balance for transaction";
-    } else if (error.message) {
-      errorMessage = error.message;
+    } else if (err.message) {
+      errorMessage = err.message;
     }
 
     return {
@@ -577,14 +599,12 @@ export async function getDocumentFromChain(
       createdAt: Number(result[2] || result.createdAt),
       updatedAt: Number(result[3] || result.updatedAt),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Failed to get document from blockchain:", error);
 
     // Provide more helpful error messages
-    if (
-      error.code === "BAD_DATA" ||
-      error.message?.includes("could not decode")
-    ) {
+    const err = error as { code?: string; message?: string };
+    if (err.code === "BAD_DATA" || err.message?.includes("could not decode")) {
       console.error("Contract interaction error - possible causes:");
       console.error(
         "1. Contract not deployed at:",
@@ -627,12 +647,10 @@ export async function documentExistsOnChain(docId: string): Promise<boolean> {
     }
 
     return await contract.doesDocumentExist(docId);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Failed to check document existence:", error);
-    if (
-      error.code === "BAD_DATA" ||
-      error.message?.includes("could not decode")
-    ) {
+    const err = error as { code?: string; message?: string };
+    if (err.code === "BAD_DATA" || err.message?.includes("could not decode")) {
       console.error(
         "Contract interaction error - check contract address and network"
       );
@@ -900,7 +918,7 @@ export function isValidTxHash(hash: string): boolean {
  */
 export async function subscribeToContractEvents(
   eventName: string,
-  callback: (...args: any[]) => void
+  callback: (...args: unknown[]) => void
 ): Promise<void> {
   try {
     const contract = getContract();

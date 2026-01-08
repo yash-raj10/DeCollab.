@@ -654,7 +654,7 @@ const DocPage: React.FC<DocPageProps> = ({ sessionId = "default" }) => {
   };
 
   const hideToast = () => {
-    setToast((prev: any) => ({ ...prev, isVisible: false }));
+    setToast((prev: typeof toast) => ({ ...prev, isVisible: false }));
   };
 
   // Prevent hydration mismatch by not rendering until client-side

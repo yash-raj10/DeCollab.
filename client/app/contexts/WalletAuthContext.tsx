@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 // Dynamic import to avoid SSR issues
-let blockchainUtils: any = null;
+let blockchainUtils: typeof import("../utils/blockchain") | null = null;
 
 interface WalletConnection {
   address: string;

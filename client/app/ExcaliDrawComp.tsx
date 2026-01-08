@@ -348,7 +348,7 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
       // Get or create encryption key
       let encryptionKey = getEncryptionKey(sessionId, walletConnection.address);
       let collaboratorAddresses = getCollaboratorAddresses(sessionId);
-      
+
       // If no key exists, create one with current user
       if (!encryptionKey) {
         collaboratorAddresses = [walletConnection.address];
@@ -375,7 +375,7 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
       // Save to blockchain
       showToast("Saving to blockchain...", "info");
       const existingDoc = await getDocumentFromChain(sessionId);
-      
+
       let blockchainResult;
       if (existingDoc) {
         blockchainResult = await updateDocumentOnChain(sessionId, cid);
@@ -386,11 +386,15 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
       if (blockchainResult.success) {
         showToast("Drawing saved successfully!", "success");
       } else {
-        showToast(blockchainResult.error || "Failed to save to blockchain", "error");
+        showToast(
+          blockchainResult.error || "Failed to save to blockchain",
+          "error"
+        );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Save error:", error);
-      showToast(error.message || "Failed to save drawing", "error");
+      const err = error as { message?: string };
+      showToast(err.message || "Failed to save drawing", "error");
     } finally {
       setIsSaving(false);
     }
@@ -408,13 +412,13 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
       const docMetadata = await getDocumentFromChain(sessionId);
       if (docMetadata && docMetadata.cid) {
         showToast("Loading drawing...", "info");
-        
+
         // Get encrypted data from storage
         const encryptedData = await getFromIPFS(docMetadata.cid);
-        
+
         // Get encryption key
         let encryptionKey = getEncryptionKey(sessionId, walletAddress);
-        
+
         // If no key stored, try to derive from blockchain metadata
         if (!encryptionKey) {
           // Get all collaborators (we'll need to store this in blockchain or derive)
@@ -423,26 +427,26 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
           encryptionKey = generateEncryptionKey(collaborators);
           storeEncryptionKey(sessionId, encryptionKey, collaborators);
         }
-        
+
         // Decrypt the data
         try {
           const decryptedData = await decryptData(encryptedData, encryptionKey);
           const parsedContent = JSON.parse(decryptedData);
-          
+
           if (parsedContent.elements) {
             setCurrentElements(parsedContent.elements);
-            
+
             const appState = {
               ...parsedContent.appState,
               collaborators: new Map(),
             };
             setCurrentAppState(appState);
-            
+
             setInitialData({
               elements: parsedContent.elements,
               appState: appState,
             });
-            
+
             showToast("Drawing loaded successfully!", "success");
           }
         } catch (decryptError) {
@@ -455,7 +459,7 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
       console.error("Load error:", error);
       // Don't show error for missing drawings
     }
-  }, [isClient, sessionId, walletConnection]);   // Get user drawings function using blockchain
+  }, [isClient, sessionId, walletConnection]); // Get user drawings function using blockchain
   const getUserDrawings = async () => {
     if (!isClient || !walletConnection?.address) return [];
 
@@ -492,25 +496,28 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
 
     try {
       showToast("Loading drawing...", "info");
-      
+
       // Get document from blockchain
       const docMetadata = await getDocumentFromChain(drawingId);
       if (docMetadata && docMetadata.cid) {
         // Get encrypted data
         const encryptedData = await getFromIPFS(docMetadata.cid);
-        
+
         // Get encryption key
-        let encryptionKey = getEncryptionKey(drawingId, walletConnection.address);
+        let encryptionKey = getEncryptionKey(
+          drawingId,
+          walletConnection.address
+        );
         if (!encryptionKey) {
           const collaborators = [docMetadata.createdBy];
           encryptionKey = generateEncryptionKey(collaborators);
           storeEncryptionKey(drawingId, encryptionKey, collaborators);
         }
-        
+
         // Decrypt
         const decryptedData = await decryptData(encryptedData, encryptionKey);
         const parsedContent = JSON.parse(decryptedData);
-        
+
         if (parsedContent.elements) {
           setCurrentElements(parsedContent.elements);
           const appState = {
@@ -522,7 +529,7 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
             elements: parsedContent.elements,
             appState: appState,
           });
-          
+
           // Update URL and close sidebar
           window.history.pushState({}, "", `/excalidraw/${drawingId}`);
           setShowSidebar(false);
@@ -531,9 +538,10 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
       } else {
         showToast("Drawing not found", "error");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Load error:", error);
-      showToast(error.message || "Failed to load drawing", "error");
+      const err = error as { message?: string };
+      showToast(err.message || "Failed to load drawing", "error");
     }
   };
 
@@ -560,7 +568,12 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
       // Initialize user data with username for display
       userDataRef.current = {
         userId: walletConnection?.address || username,
-        userName: user?.name || `${walletConnection?.address?.slice(0, 6)}...${walletConnection?.address?.slice(-4)}`,
+        userName:
+          user?.name ||
+          `${walletConnection?.address?.slice(
+            0,
+            6
+          )}...${walletConnection?.address?.slice(-4)}`,
         userColor: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
       };
 
@@ -718,7 +731,9 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
           <div className="relative z-10 w-80 bg-pastel-yellow border-r-4 border-black overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-black text-black uppercase">My Drawings</h2>
+                <h2 className="text-2xl font-black text-black uppercase">
+                  My Drawings
+                </h2>
                 <button
                   onClick={() => setShowSidebar(false)}
                   className="neobrutal-button bg-pastel-pink p-2 text-black"
@@ -834,7 +849,9 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
               <div className="flex items-center gap-2">
                 <span
                   className={`w-4 h-4 border-2 border-black ${
-                    walletConnection?.isConnected ? "bg-pastel-green" : "bg-pastel-orange"
+                    walletConnection?.isConnected
+                      ? "bg-pastel-green"
+                      : "bg-pastel-orange"
                   }`}
                 ></span>
                 <span className="text-black font-black text-sm">
@@ -849,9 +866,13 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
                 </span>
               </div>
               {!walletConnection?.isConnected ? (
-                <span className="text-black text-xs font-bold bg-pastel-orange px-2 py-1 border-2 border-black">Not Connected</span>
+                <span className="text-black text-xs font-bold bg-pastel-orange px-2 py-1 border-2 border-black">
+                  Not Connected
+                </span>
               ) : (
-                <span className="text-black text-xs font-bold bg-pastel-mint px-2 py-1 border-2 border-black">Connected</span>
+                <span className="text-black text-xs font-bold bg-pastel-mint px-2 py-1 border-2 border-black">
+                  Connected
+                </span>
               )}
             </div>
 
@@ -921,10 +942,13 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = ({
                   <div
                     key={user.userId}
                     className={`neobrutal-box px-3 py-2 text-sm font-black text-black ${
-                      index % 4 === 0 ? "bg-pastel-pink" :
-                      index % 4 === 1 ? "bg-pastel-blue" :
-                      index % 4 === 2 ? "bg-pastel-yellow" :
-                      "bg-pastel-purple"
+                      index % 4 === 0
+                        ? "bg-pastel-pink"
+                        : index % 4 === 1
+                        ? "bg-pastel-blue"
+                        : index % 4 === 2
+                        ? "bg-pastel-yellow"
+                        : "bg-pastel-purple"
                     }`}
                     title={user.userName ?? ""}
                   >

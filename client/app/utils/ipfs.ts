@@ -1,6 +1,16 @@
 // Import Lighthouse SDK - using static import to avoid Next.js chunk loading issues
 // We'll only use it in client-side functions
-let lighthouseSDK: any = null;
+
+// Define Lighthouse SDK type
+interface LighthouseSDK {
+  uploadText: (
+    content: string,
+    apiKey: string,
+    filename: string
+  ) => Promise<unknown>;
+}
+
+let lighthouseSDK: LighthouseSDK | null = null;
 
 // Lazy load Lighthouse SDK only when needed (client-side)
 async function getLighthouseSDK() {
@@ -11,7 +21,7 @@ async function getLighthouseSDK() {
 
   if (!lighthouseSDK) {
     try {
-      lighthouseSDK = await import("@lighthouse-web3/sdk");
+      lighthouseSDK = (await import("@lighthouse-web3/sdk")) as LighthouseSDK;
     } catch (error) {
       console.error("Failed to load Lighthouse SDK:", error);
       return null;
@@ -65,7 +75,9 @@ export async function uploadToIPFS(
   } catch (error) {
     console.error("IPFS upload failed:", error);
     throw new Error(
-      `Failed to upload to IPFS: ${error instanceof Error ? error.message : "Unknown error"}`
+      `Failed to upload to IPFS: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
     );
   }
 }
@@ -83,7 +95,9 @@ async function uploadViaLighthouse(
     const lighthouse = await getLighthouseSDK();
 
     if (!lighthouse) {
-      throw new Error("Lighthouse SDK not available (server-side or failed to load)");
+      throw new Error(
+        "Lighthouse SDK not available (server-side or failed to load)"
+      );
     }
 
     // Use uploadText for text content (more efficient than file upload)
@@ -96,15 +110,19 @@ async function uploadViaLighthouse(
 
     // Lighthouse returns the CID in different possible formats
     // Handle various response structures
-    const cid =
-      (response as any)?.data?.Hash ||
-      (response as any)?.Hash ||
-      (response as any)?.cid ||
-      (response as any)?.data?.cid;
+    type LighthouseResponse = {
+      data?: { Hash?: string; cid?: string };
+      Hash?: string;
+      cid?: string;
+    };
+    const res = response as LighthouseResponse;
+    const cid = res?.data?.Hash || res?.Hash || res?.cid || res?.data?.cid;
 
     if (!cid) {
       console.error("Lighthouse response:", response);
-      throw new Error("No CID returned from Lighthouse. Response: " + JSON.stringify(response));
+      throw new Error(
+        "No CID returned from Lighthouse. Response: " + JSON.stringify(response)
+      );
     }
 
     console.log("Content uploaded to IPFS via Lighthouse:", cid);
@@ -138,14 +156,17 @@ async function uploadViaIPFSHTTP(
 
   if (pinataApiKey && pinataSecretKey) {
     try {
-      const response = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
-        method: "POST",
-        headers: {
-          pinata_api_key: pinataApiKey,
-          pinata_secret_api_key: pinataSecretKey,
-        },
-        body: formData,
-      });
+      const response = await fetch(
+        "https://api.pinata.cloud/pinning/pinFileToIPFS",
+        {
+          method: "POST",
+          headers: {
+            pinata_api_key: pinataApiKey,
+            pinata_secret_api_key: pinataSecretKey,
+          },
+          body: formData,
+        }
+      );
 
       if (response.ok) {
         const result = await response.json();
@@ -251,7 +272,9 @@ export async function getFromIPFS(cid: string): Promise<string> {
   } catch (error) {
     console.error("IPFS retrieval failed:", error);
     throw new Error(
-      `Failed to retrieve content from IPFS: ${error instanceof Error ? error.message : "Unknown error"}`
+      `Failed to retrieve content from IPFS: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
     );
   }
 }

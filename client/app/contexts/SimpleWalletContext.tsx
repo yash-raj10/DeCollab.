@@ -1,5 +1,11 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import { API_ENDPOINTS } from "../config/api";
 
 interface WalletConnection {
@@ -47,7 +53,9 @@ export const WalletAuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const hasCheckedRef = useRef(false);
 
   // Check if user is registered in MongoDB
-  const checkUserRegistration = async (walletAddress: string): Promise<boolean> => {
+  const checkUserRegistration = async (
+    walletAddress: string
+  ): Promise<boolean> => {
     try {
       const response = await fetch(API_ENDPOINTS.AUTH.WALLET_CHECK, {
         method: "POST",
@@ -58,7 +66,7 @@ export const WalletAuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       const data = await response.json();
-      
+
       if (data.exists && data.user) {
         setUser(data.user);
         localStorage.setItem("user", JSON.stringify(data.user));
@@ -78,30 +86,34 @@ export const WalletAuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (hasCheckedRef.current) return;
     hasCheckedRef.current = true;
-    
+
     const init = async () => {
       if (typeof window === "undefined" || !window.ethereum) {
         setIsLoading(false);
         return;
       }
-      
+
       // Check if user manually disconnected
       const manuallyDisconnected = localStorage.getItem("manuallyDisconnected");
       if (manuallyDisconnected === "true") {
         setIsLoading(false);
         return;
       }
-      
+
       try {
-        const accounts = await window.ethereum.request({ method: "eth_accounts" });
+        const accounts = (await window.ethereum.request({
+          method: "eth_accounts",
+        })) as string[];
         if (accounts && accounts.length > 0) {
-          const chainId = await window.ethereum.request({ method: "eth_chainId" });
+          const chainId = (await window.ethereum.request({
+            method: "eth_chainId",
+          })) as string;
           setWalletConnection({
             address: accounts[0],
             chainId: parseInt(chainId, 16),
             isConnected: true,
           });
-          
+
           // Check DB once
           await checkUserRegistration(accounts[0]);
         }
@@ -110,7 +122,7 @@ export const WalletAuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       setIsLoading(false);
     };
-    
+
     init();
   }, []);
 
@@ -124,16 +136,18 @@ export const WalletAuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
 
       // Request account access
-      const accounts = await window.ethereum.request({
+      const accounts = (await window.ethereum.request({
         method: "eth_requestAccounts",
-      });
+      })) as string[];
 
       if (!accounts || accounts.length === 0) {
         throw new Error("No accounts found");
       }
 
       // Get chain ID
-      const chainId = await window.ethereum.request({ method: "eth_chainId" });
+      const chainId = (await window.ethereum.request({
+        method: "eth_chainId",
+      })) as string;
       const chainIdDecimal = parseInt(chainId, 16);
 
       const connection: WalletConnection = {
